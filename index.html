@@ -2,142 +2,46 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>UTM Tracker & Path Graph</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live Phone UTM Tracker</title>
   <style>
-    * { box-sizing: border-box; }
-    body {
-      font-family: system-ui, -apple-system, sans-serif;
-      padding: 16px;
-      max-width: 500px;
-      margin: auto;
-      background: #0f172a;
-      color: #f8fafc;
-    }
-    h2 { margin: 0 0 12px; font-size: 1.25rem; }
-    
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
-    .card { background: #1e293b; padding: 14px; border-radius: 10px; border: 1px solid #334155; }
-    .card.full { grid-column: span 2; }
-    
-    .label { font-size: 0.72rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
-    .val { font-size: 1.35rem; font-weight: 700; font-family: ui-monospace, monospace; margin-top: 4px; color: #38bdf8; }
-    .val.green { color: #4ade80; }
-    .val.amber { color: #fbbf24; }
-    .sub { font-size: 0.8rem; color: #cbd5e1; font-family: ui-monospace, monospace; margin-top: 6px; }
-
-    /* Compass UI */
-    .compass-wrap { display: flex; align-items: center; justify-content: space-between; }
-    .dial {
-      width: 74px; height: 74px; border-radius: 50%; border: 2px solid #475569;
-      position: relative; display: flex; align-items: center; justify-content: center;
-      background: #0f172a;
-    }
-    .needle {
-      width: 4px; height: 58px; position: relative; transition: transform 0.1s ease-out;
-    }
-    .needle::before {
-      content: ""; position: absolute; top: 0; left: -3px;
-      border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 29px solid #ef4444;
-    }
-    .needle::after {
-      content: ""; position: absolute; bottom: 0; left: -3px;
-      border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 29px solid #94a3b8;
-    }
-
-    /* Track Path Canvas */
-    canvas {
-      width: 100%;
-      height: 260px;
-      background: #0b1120;
-      border-radius: 8px;
-      border: 1px solid #334155;
-      margin-top: 8px;
-      display: block;
-    }
-
-    /* Controls */
-    .btn-row { display: grid; grid-template-columns: 2fr 1fr; gap: 8px; }
-    button {
-      padding: 13px; font-size: 0.95rem; font-weight: 600; border: none;
-      border-radius: 8px; cursor: pointer; color: #fff; background: #2563eb;
-      touch-action: manipulation;
-    }
-    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    body { font-family: system-ui, sans-serif; padding: 20px; max-width: 480px; margin: auto; background: #121212; color: #f5f5f5; }
+    .card { background: #1e1e1e; padding: 20px; border-radius: 12px; margin-top: 16px; border: 1px solid #333; }
+    .label { font-size: 0.85rem; color: #aaa; text-transform: uppercase; letter-spacing: 0.05em; }
+    .value { font-size: 1.6rem; font-weight: bold; font-family: monospace; margin: 4px 0 16px; color: #4ade80; }
+    .sub { font-size: 0.9rem; color: #ccc; font-family: monospace; }
+    button { width: 100%; padding: 14px; font-size: 1rem; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; background: #2563eb; color: white; }
     button.stop { background: #dc2626; }
-    button.secondary { background: #334155; }
-    #status { margin-top: 8px; font-size: 0.85rem; color: #fbbf24; min-height: 1.4em; word-break: break-word; }
+    #status { margin-top: 12px; font-size: 0.9rem; color: #fbbf24; }
   </style>
 </head>
 <body>
 
-  <h2>Live UTM & Track Graph</h2>
+  <h2>Live UTM GPS Tracker</h2>
+  <button id="toggleBtn">Start Tracking</button>
+  <div id="status">Ready. Tap Start to request GPS access.</div>
 
-  <div class="btn-row">
-    <button type="button" id="toggleBtn">Start Tracking</button>
-    <button type="button" id="resetBtn" class="secondary" disabled>Reset Start</button>
-  </div>
-  <div id="status">Tap Start to enable GPS and Compass.</div>
+  <div class="card">
+    <div class="label">UTM Zone</div>
+    <div class="value" id="zone">--</div>
 
-  <div class="grid">
-    <!-- Live UTM -->
-    <div class="card full">
-      <div class="label">UTM Coordinates (<span id="zone">--</span>)</div>
-      <div class="val green" id="utmE">E: --</div>
-      <div class="val green" id="utmN">N: --</div>
-      <div class="sub" id="meta">Accuracy: -- | Lat/Lng: --</div>
-    </div>
+    <div class="label">Easting (m E)</div>
+    <div class="value" id="easting">--</div>
 
-    <!-- Distance to Start -->
-    <div class="card">
-      <div class="label">Distance to Start</div>
-      <div class="val amber" id="distStart">0.0 m</div>
-      <div class="sub" id="bearingStart">Return: --°</div>
-    </div>
+    <div class="label">Northing (m N)</div>
+    <div class="value" id="northing">--</div>
 
-    <!-- Azimuth Compass -->
-    <div class="card compass-wrap">
-      <div>
-        <div class="label">Azimuth</div>
-        <div class="val" id="azimuthVal">--°</div>
-        <div class="sub" id="cardinalDir">--</div>
-      </div>
-      <div class="dial">
-        <div class="needle" id="needle"></div>
-      </div>
-    </div>
-
-    <!-- Track Path Graph -->
-    <div class="card full">
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <span class="label">Track Path (North Up)</span>
-        <span class="sub" id="scaleLabel" style="margin:0;">View: ~10m</span>
-      </div>
-      <canvas id="trackCanvas" width="460" height="260"></canvas>
-    </div>
+    <div class="sub" id="meta">Accuracy: -- | Lat/Lng: --</div>
   </div>
 
   <script>
     let watchId = null;
-    let currentFix = null;
-    let originUTM = null;
-    let currentAzimuth = null;
-    let trackPoints = [];
-
-    const toggleBtn = document.getElementById("toggleBtn");
-    const resetBtn = document.getElementById("resetBtn");
+    const btn = document.getElementById("toggleBtn");
     const statusEl = document.getElementById("status");
-    const canvas = document.getElementById("trackCanvas");
-    const ctx = canvas.getContext("2d");
 
-    // Warn immediately if not HTTPS or localhost
-    if (!window.isSecureContext) {
-      statusEl.textContent = "Warning: GPS & Compass require HTTPS (or localhost). Current connection is insecure.";
-    }
-
-    // 1. WGS84 Lat/Lng to UTM
     function latLngToUTM(lat, lng) {
-      if (lat < -80 || lat > 84) throw new Error("Out of UTM bounds");
+      if (lat < -80 || lat > 84) throw new Error("Out of UTM bounds (80°S to 84°N).");
+
       const a = 6378137.0, f = 1 / 298.257223563, k0 = 0.9996;
       const e2 = 2 * f - f * f, ep2 = e2 / (1 - e2);
 
@@ -179,92 +83,54 @@
           ((61 - 58 * T + T ** 2 + 600 * C - 330 * ep2) * A ** 6) / 720
         )
       );
+
       if (lat < 0) northing += 10000000.0;
 
-      return { zone: `${zone}${band}`, easting, northing };
+      return {
+        zone: `${zone}${band}`,
+        easting: easting.toFixed(2),
+        northing: northing.toFixed(2)
+      };
     }
 
-    // 2. Azimuth Compass
-    function degToCardinal(deg) {
-      const dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
-      return dirs[Math.round(deg / 45) % 8];
+    function onSuccess(pos) {
+      const { latitude, longitude, accuracy } = pos.coords;
+      const utm = latLngToUTM(latitude, longitude);
+
+      document.getElementById("zone").textContent = utm.zone;
+      document.getElementById("easting").textContent = `${utm.easting} m`;
+      document.getElementById("northing").textContent = `${utm.northing} m`;
+      document.getElementById("meta").textContent = 
+        `Accuracy: ±${Math.round(accuracy)}m | ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+      statusEl.textContent = `Updated: ${new Date(pos.timestamp).toLocaleTimeString()}`;
     }
 
-    function handleOrientation(event) {
-      let heading = null;
-      if (typeof event.webkitCompassHeading === "number") {
-        heading = event.webkitCompassHeading;
-      } else if (event.absolute && typeof event.alpha === "number") {
-        heading = (360 - event.alpha) % 360;
-      } else if (typeof event.alpha === "number") {
-        heading = (360 - event.alpha) % 360;
-      }
-
-      if (heading !== null && !isNaN(heading)) {
-        currentAzimuth = Math.round(heading);
-        document.getElementById("azimuthVal").textContent = `${currentAzimuth}°`;
-        document.getElementById("cardinalDir").textContent = degToCardinal(currentAzimuth);
-        document.getElementById("needle").style.transform = `rotate(${-currentAzimuth}deg)`;
-        drawTrackGraph();
-      }
+    function onError(err) {
+      statusEl.textContent = `GPS Error (${err.code}): ${err.message}`;
     }
 
-    function initCompass() {
-      if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
-        DeviceOrientationEvent.requestPermission()
-          .then((res) => {
-            if (res === "granted") {
-              window.addEventListener("deviceorientation", handleOrientation, true);
-            } else {
-              statusEl.textContent = "Compass permission denied; tracking GPS only.";
-            }
-          })
-          .catch((err) => {
-            console.warn("Compass permission error:", err);
-          });
+    btn.addEventListener("click", () => {
+      if (watchId === null) {
+        if (!("geolocation" in navigator)) {
+          statusEl.textContent = "Geolocation not supported on this device.";
+          return;
+        }
+        statusEl.textContent = "Acquiring GPS satellites...";
+        watchId = navigator.geolocation.watchPosition(onSuccess, onError, {
+          enableHighAccuracy: true,
+          maximumAge: 0,
+          timeout: 15000
+        });
+        btn.textContent = "Stop Tracking";
+        btn.classList.add("stop");
       } else {
-        window.addEventListener("deviceorientationabsolute", handleOrientation, true);
-        window.addEventListener("deviceorientation", handleOrientation, true);
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+        btn.textContent = "Start Tracking";
+        btn.classList.remove("stop");
+        statusEl.textContent = "Tracking paused.";
       }
-    }
-
-    // 3. Auto-Scaling 2D Track Graph
-    function drawTrackGraph() {
-      const w = canvas.width;
-      const h = canvas.height;
-      ctx.clearRect(0, 0, w, h);
-
-      let minX = 0, maxX = 0, minY = 0, maxY = 0;
-      for (const pt of trackPoints) {
-        if (pt.x < minX) minX = pt.x;
-        if (pt.x > maxX) maxX = pt.x;
-        if (pt.y < minY) minY = pt.y;
-        if (pt.y > maxY) maxY = pt.y;
-      }
-
-      const spanX = Math.max(maxX - minX, 10);
-      const spanY = Math.max(maxY - minY, 10);
-      const midX = (minX + maxX) / 2;
-      const midY = (minY + maxY) / 2;
-
-      const padding = 32;
-      const scale = Math.min((w - padding * 2) / spanX, (h - padding * 2) / spanY);
-      document.getElementById("scaleLabel").textContent = `View: ~${Math.round(Math.max(spanX, spanY))}m`;
-
-      const toPx = (x, y) => ({
-        px: w / 2 + (x - midX) * scale,
-        py: h / 2 - (y - midY) * scale
-      });
-
-      // Crosshair grid through origin (0,0)
-      const originPx = toPx(0, 0);
-      ctx.strokeStyle = "#1e293b";
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(originPx.px, 0); ctx.lineTo(originPx.px, h);
-      ctx.moveTo(0, originPx.py); ctx.lineTo(w, originPx.py);
-      ctx.stroke();
-
-      // North indicator
-      ctx.fillStyle = "#64748b";
-      ctx.font = "bold 12px system-ui";
+    });
+  </script>
+</body>
+</html>
