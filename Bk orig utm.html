@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live Phone UTM Tracker</title>
+  <style>
+    body { font-family: system-ui, sans-serif; padding: 20px; max-width: 480px; margin: auto; background: #121212; color: #f5f5f5; }
+    .card { background: #1e1e1e; padding: 20px; border-radius: 12px; margin-top: 16px; border: 1px solid #333; }
+    .label { font-size: 0.85rem; color: #aaa; text-transform: uppercase; letter-spacing: 0.05em; }
+    .value { font-size: 1.6rem; font-weight: bold; font-family: monospace; margin: 4px 0 16px; color: #4ade80; }
+    .sub { font-size: 0.9rem; color: #ccc; font-family: monospace; }
+    button { width: 100%; padding: 14px; font-size: 1rem; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; background: #2563eb; color: white; }
+    button.stop { background: #dc2626; }
+    #status { margin-top: 12px; font-size: 0.9rem; color: #fbbf24; }
+  </style>
+</head>
+<body>
+
+  <h2>Live UTM GPS Tracker</h2>
+  <button id="toggleBtn">Start Tracking</button>
+  <div id="status">Ready. Tap Start to request GPS access.</div>
+
+  <div class="card">
+    <div class="label">UTM Zone</div>
+    <div class="value" id="zone">--</div>
+
+    <div class="label">Easting (m E)</div>
+    <div class="value" id="easting">--</div>
+
+    <div class="label">Northing (m N)</div>
+    <div class="value" id="northing">--</div>
+
+    <div class="sub" id="meta">Accuracy: -- | Lat/Lng: --</div>
+  </div>
+
+  <script>
+    let watchId = null;
+    const btn = document.getElementById("toggleBtn");
+    const statusEl = document.getElementById("status");
+
+    function latLngToUTM(lat, lng) {
+      if (lat < -80 || lat > 84) throw new Error("Out of UTM bounds (80°S to 84°N).");
+
+      const a = 6378137.0, f = 1 / 298.257223563, k0 = 0.9996;
+      const e2 = 2 * f - f * f, ep2 = e2 / (1 - e2);
+
+      let zone = Math.floor((lng + 180) / 6) + 1;
+      if (lat >= 56.0 && lat < 64.0 && lng >= 3.0 && lng < 12.0) zone = 32;
+      if (lat >= 72.0 && lat < 84.0) {
+        if (lng >= 0.0 && lng < 9.0) zone = 31;
+        else if (lng >= 9.0 && lng < 21.0) zone = 33;
+        else if (lng >= 21.0 && lng < 33.0) zone = 35;
+        else if (lng >= 33.0 && lng < 42.0) zone = 37;
+      }
+
+      const lonOriginRad = ((zone - 1) * 6 - 180 + 3) * (Math.PI / 180);
+      const latRad = lat * (Math.PI / 180);
+      const lonRad = lng * (Math.PI / 180);
+      const bands = "CDEFGHJKLMNPQRSTUVWXX";
+      const band = bands[Math.floor((lat + 80) / 8)];
+
+      const N = a / Math.sqrt(1 - e2 * Math.sin(latRad) ** 2);
+      const T = Math.tan(latRad) ** 2;
+      const C = ep2 * Math.cos(latRad) ** 2;
+      const A = Math.cos(latRad) * (lonRad - lonOriginRad);
+
+      const M = a * (
+        (1 - e2 / 4 - (3 * e2 ** 2) / 64 - (5 * e2 ** 3) / 256) * latRad -
+        ((3 * e2) / 8 + (3 * e2 ** 2) / 32 + (45 * e2 ** 3) / 1024) * Math.sin(2 * latRad) +
+        ((15 * e2 ** 2) / 256 + (45 * e2 ** 3) / 1024) * Math.sin(4 * latRad) -
+        ((35 * e2 ** 3) / 3072) * Math.sin(6 * latRad)
+      );
+
+      const easting = k0 * N * (
+        A + ((1 - T + C) * A ** 3) / 6 +
+        ((5 - 18 * T + T ** 2 + 72 * C - 58 * ep2) * A ** 5) / 120
+      ) + 500000.0;
+
+      let northing = k0 * (
+        M + N * Math.tan(latRad) * (
+          A ** 2 / 2 + ((5 - T + 9 * C + 4 * C ** 2) * A ** 4) / 24 +
+          ((61 - 58 * T + T ** 2 + 600 * C - 330 * ep2) * A ** 6) / 720
+        )
+      );
+
+      if (lat < 0) northing += 10000000.0;
+
+      return {
+        zone: `${zone}${band}`,
+        easting: easting.toFixed(2),
+        northing: northing.toFixed(2)
+      };
+    }
+
+    function onSuccess(pos) {
+      const { latitude, longitude, accuracy } = pos.coords;
+      const utm = latLngToUTM(latitude, longitude);
+
+      document.getElementById("zone").textContent = utm.zone;
+      document.getElementById("easting").textContent = `${utm.easting} m`;
+      document.getElementById("northing").textContent = `${utm.northing} m`;
+      document.getElementById("meta").textContent = 
+        `Accuracy: ±${Math.round(accuracy)}m | ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+      statusEl.textContent = `Updated: ${new Date(pos.timestamp).toLocaleTimeString()}`;
+    }
+
+    function onError(err) {
+      statusEl.textContent = `GPS Error (${err.code}): ${err.message}`;
+    }
+
+    btn.addEventListener("click", () => {
+      if (watchId === null) {
+        if (!("geolocation" in navigator)) {
+          statusEl.textContent = "Geolocation not supported on this device.";
+          return;
+        }
+        statusEl.textContent = "Acquiring GPS satellites...";
+        watchId = navigator.geolocation.watchPosition(onSuccess, onError, {
+          enableHighAccuracy: true,
+          maximumAge: 0,
+          timeout: 15000
+        });
+        btn.textContent = "Stop Tracking";
+        btn.classList.add("stop");
+      } else {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+        btn.textContent = "Start Tracking";
+        btn.classList.remove("stop");
+        statusEl.textContent = "Tracking paused.";
+      }
+    });
+  </script>
+</body>
+</html>
