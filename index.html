@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>UTM Field Tracker & Compass</title>
+  <title>UTM Tracker & Path Graph</title>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -14,9 +14,7 @@
       background: #0f172a;
       color: #f8fafc;
     }
-    h2 { margin: 0 0 12px; font-size: 1.25rem; display: flex; justify-content: space-between; align-items: center; }
-    .badge { font-size: 0.75rem; padding: 3px 8px; border-radius: 99px; background: #1e293b; color: #94a3b8; }
-    .badge.active { background: #065f46; color: #6ee7b7; }
+    h2 { margin: 0 0 12px; font-size: 1.25rem; }
     
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
     .card { background: #1e293b; padding: 14px; border-radius: 10px; border: 1px solid #334155; }
@@ -47,36 +45,41 @@
       border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 29px solid #94a3b8;
     }
 
+    /* Track Path Canvas */
+    canvas {
+      width: 100%;
+      height: 260px;
+      background: #0b1120;
+      border-radius: 8px;
+      border: 1px solid #334155;
+      margin-top: 8px;
+      display: block;
+    }
+
     /* Controls */
-    .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+    .btn-row { display: grid; grid-template-columns: 2fr 1fr; gap: 8px; }
     button {
-      padding: 12px; font-size: 0.92rem; font-weight: 600; border: none;
+      padding: 13px; font-size: 0.95rem; font-weight: 600; border: none;
       border-radius: 8px; cursor: pointer; color: #fff; background: #2563eb;
     }
     button:disabled { opacity: 0.4; cursor: not-allowed; }
     button.stop { background: #dc2626; }
     button.secondary { background: #334155; }
-    button.export { background: #059669; }
-    #status { margin-top: 10px; font-size: 0.82rem; color: #fbbf24; min-height: 1.2em; }
+    #status { margin-top: 8px; font-size: 0.82rem; color: #fbbf24; min-height: 1.2em; }
   </style>
 </head>
 <body>
 
-  <h2>
-    <span>UTM Field Tracker</span>
-    <span id="wakeBadge" class="badge">Screen Lock: Off</span>
-  </h2>
+  <h2>Live UTM & Track Graph</h2>
 
   <div class="btn-row">
-    <button id="toggleBtn" style="grid-column: span 2;">Start GPS & Compass</button>
-    <button id="originBtn" class="secondary" disabled>Set Origin (0,0)</button>
-    <button id="logBtn" class="secondary" disabled>Log Point (0)</button>
-    <button id="exportBtn" class="export" style="grid-column: span 2;" disabled>Download CSV</button>
+    <button id="toggleBtn">Start Tracking</button>
+    <button id="resetBtn" class="secondary" disabled>Reset Start</button>
   </div>
-  <div id="status">Tap Start to enable GPS, Compass & Wake Lock.</div>
+  <div id="status">Tap Start to enable GPS and Compass.</div>
 
   <div class="grid">
-    <!-- UTM Coordinates -->
+    <!-- Live UTM -->
     <div class="card full">
       <div class="label">UTM Coordinates (<span id="zone">--</span>)</div>
       <div class="val green" id="utmE">E: --</div>
@@ -84,46 +87,47 @@
       <div class="sub" id="meta">Accuracy: -- | Lat/Lng: --</div>
     </div>
 
-    <!-- Local Offset & Distance to Start -->
+    <!-- Distance to Start -->
     <div class="card">
-      <div class="label">Local Offset (ΔX, ΔY)</div>
-      <div class="val" id="localXY">0.0, 0.0 m</div>
-      <div class="sub" id="originState">Origin: Auto (1st fix)</div>
-    </div>
-
-    <div class="card">
-      <div class="label">Distance & Bearing to Start</div>
+      <div class="label">Distance to Start</div>
       <div class="val amber" id="distStart">0.0 m</div>
-      <div class="sub" id="bearingStart">Return Azimuth: --°</div>
+      <div class="sub" id="bearingStart">Return: --°</div>
     </div>
 
     <!-- Azimuth Compass -->
-    <div class="card full compass-wrap">
+    <div class="card compass-wrap">
       <div>
-        <div class="label">Device Azimuth (Heading)</div>
-        <div class="val" id="azimuthVal">--° --</div>
-        <div class="sub" id="compassSrc">Sensor: Waiting...</div>
+        <div class="label">Azimuth</div>
+        <div class="val" id="azimuthVal">--°</div>
+        <div class="sub" id="cardinalDir">--</div>
       </div>
       <div class="dial">
         <div class="needle" id="needle"></div>
       </div>
     </div>
+
+    <!-- Track Path Graph -->
+    <div class="card full">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span class="label">Track Path (North Up)</span>
+        <span class="sub" id="scaleLabel" style="margin:0;">Scale: 10m</span>
+      </div>
+      <canvas id="trackCanvas" width="460" height="260"></canvas>
+    </div>
   </div>
 
   <script>
     let watchId = null;
-    let wakeLock = null;
     let currentFix = null;
     let originUTM = null;
     let currentAzimuth = null;
-    const waypoints = [];
+    let trackPoints = []; // Stores { x: dx, y: dy } in meters from start
 
     const toggleBtn = document.getElementById("toggleBtn");
-    const originBtn = document.getElementById("originBtn");
-    const logBtn = document.getElementById("logBtn");
-    const exportBtn = document.getElementById("exportBtn");
+    const resetBtn = document.getElementById("resetBtn");
     const statusEl = document.getElementById("status");
-    const wakeBadge = document.getElementById("wakeBadge");
+    const canvas = document.getElementById("trackCanvas");
+    const ctx = canvas.getContext("2d");
 
     // 1. WGS84 Lat/Lng to UTM
     function latLngToUTM(lat, lng) {
@@ -174,26 +178,7 @@
       return { zone: `${zone}${band}`, easting, northing };
     }
 
-    // 2. Screen Wake Lock
-    async function enableWakeLock() {
-      if ("wakeLock" in navigator) {
-        try {
-          wakeLock = await navigator.wakeLock.request("screen");
-          wakeBadge.textContent = "Screen Lock: On";
-          wakeBadge.classList.add("active");
-          wakeLock.addEventListener("release", () => {
-            wakeBadge.textContent = "Screen Lock: Off";
-            wakeBadge.classList.remove("active");
-          });
-        } catch (e) { /* Ignore if battery saver blocks it */ }
-      }
-    }
-
-    document.addEventListener("visibilitychange", () => {
-      if (wakeLock !== null && document.visibilityState === "visible") enableWakeLock();
-    });
-
-    // 3. Compass / Azimuth Handler (iOS + Android)
+    // 2. Azimuth Compass
     function degToCardinal(deg) {
       const dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
       return dirs[Math.round(deg / 45) % 8];
@@ -201,49 +186,81 @@
 
     function handleOrientation(event) {
       let heading = null;
-      let source = "";
-
       if (typeof event.webkitCompassHeading === "number") {
-        // iOS Safari (0 = Magnetic North, clockwise)
         heading = event.webkitCompassHeading;
-        source = "iOS Magnetometer";
       } else if (event.absolute && typeof event.alpha === "number") {
-        // Android Chrome (alpha is counter-clockwise from North)
         heading = (360 - event.alpha) % 360;
-        source = "Android Absolute";
       } else if (typeof event.alpha === "number") {
         heading = (360 - event.alpha) % 360;
-        source = "Relative Orientation";
       }
 
       if (heading !== null) {
         currentAzimuth = Math.round(heading);
-        document.getElementById("azimuthVal").textContent = `${currentAzimuth}° ${degToCardinal(currentAzimuth)}`;
-        document.getElementById("compassSrc").textContent = `Sensor: ${source}`;
+        document.getElementById("azimuthVal").textContent = `${currentAzimuth}°`;
+        document.getElementById("cardinalDir").textContent = degToCardinal(currentAzimuth);
         document.getElementById("needle").style.transform = `rotate(${-currentAzimuth}deg)`;
+        drawTrackGraph(); // Redraw heading cone on map
       }
     }
 
     async function initCompass() {
-      // iOS 13+ requires explicit permission prompt on user tap
       if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
         try {
           const res = await DeviceOrientationEvent.requestPermission();
           if (res === "granted") {
             window.addEventListener("deviceorientation", handleOrientation, true);
-          } else {
-            document.getElementById("compassSrc").textContent = "Compass permission denied";
           }
-        } catch (e) {
-          document.getElementById("compassSrc").textContent = "Compass error";
-        }
+        } catch (e) {}
       } else {
-        // Android / Standard browsers
         window.addEventListener("deviceorientationabsolute", handleOrientation, true);
         window.addEventListener("deviceorientation", handleOrientation, true);
       }
     }
 
-    // 4. GPS Position & Local Math Update
-    function updateDisplay() {
-      if (!currentFix) return;
+    // 3. Auto-Scaling 2D Track Graph
+    function drawTrackGraph() {
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+
+      // Determine bounding box of all points (including origin 0,0)
+      let minX = 0, maxX = 0, minY = 0, maxY = 0;
+      for (const pt of trackPoints) {
+        if (pt.x < minX) minX = pt.x;
+        if (pt.x > maxX) maxX = pt.x;
+        if (pt.y < minY) minY = pt.y;
+        if (pt.y > maxY) maxY = pt.y;
+      }
+
+      // Minimum 10m span so initial GPS jitter doesn't over-zoom
+      const spanX = Math.max(maxX - minX, 10);
+      const spanY = Math.max(maxY - minY, 10);
+      const midX = (minX + maxX) / 2;
+      const midY = (minY + maxY) / 2;
+
+      const padding = 32;
+      const scale = Math.min((w - padding * 2) / spanX, (h - padding * 2) / spanY);
+      document.getElementById("scaleLabel").textContent = `View: ~${Math.round(Math.max(spanX, spanY))}m`;
+
+      // Convert local meters (x=East, y=North) to Canvas pixels (y inverted)
+      const toPx = (x, y) => ({
+        px: w / 2 + (x - midX) * scale,
+        py: h / 2 - (y - midY) * scale
+      });
+
+      // Draw crosshair grid through origin (0,0)
+      const originPx = toPx(0, 0);
+      ctx.strokeStyle = "#1e293b";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(originPx.px, 0); ctx.lineTo(originPx.px, h);
+      ctx.moveTo(0, originPx.py); ctx.lineTo(w, originPx.py);
+      ctx.stroke();
+
+      // North indicator in top-right
+      ctx.fillStyle = "#64748b";
+      ctx.font = "bold 12px system-ui";
+      ctx.fillText("N ↑", w - 30, 20);
+
+      // Draw dashed line from Start (0,0) to Current Position
+      if (trackPoints.length > 0) {
