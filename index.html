@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Live Phone UTM Tracker</title>
+  <title>Live Phone UTM Tracker & Compass</title>
   <style>
     body { font-family: system-ui, sans-serif; padding: 20px; max-width: 480px; margin: auto; background: #121212; color: #f5f5f5; }
     .card { background: #1e1e1e; padding: 20px; border-radius: 12px; margin-top: 16px; border: 1px solid #333; }
@@ -13,14 +13,61 @@
     button { width: 100%; padding: 14px; font-size: 1rem; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; background: #2563eb; color: white; }
     button.stop { background: #dc2626; }
     #status { margin-top: 12px; font-size: 0.9rem; color: #fbbf24; }
+
+    /* Compass Styles */
+    .compass-card { display: flex; flex-direction: column; align-items: center; text-align: center; }
+    .compass-wrapper { position: relative; width: 200px; height: 200px; margin: 12px 0; }
+    .lubber-line {
+      position: absolute; top: -6px; left: 50%; transform: translateX(-50%);
+      width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent;
+      border-top: 14px solid #ef4444; z-index: 10;
+    }
+    #compassDial { width: 100%; height: 100%; transition: transform 0.1s ease-out; }
+    .azimuth-readout { font-size: 1.8rem; font-weight: bold; font-family: monospace; color: #38bdf8; margin: 4px 0; }
   </style>
 </head>
 <body>
 
   <h2>Live UTM GPS Tracker</h2>
   <button id="toggleBtn">Start Tracking</button>
-  <div id="status">Ready. Tap Start to request GPS access.</div>
+  <div id="status">Ready. Tap Start to request GPS & Compass access.</div>
 
+  <!-- Azimuth Compass Card -->
+  <div class="card compass-card">
+    <div class="label">Azimuth / Magnetic Heading</div>
+    <div class="azimuth-readout" id="azimuthText">--° --</div>
+    
+    <div class="compass-wrapper">
+      <div class="lubber-line"></div>
+      <svg id="compassDial" viewBox="0 0 200 200">
+        <!-- Outer Ring -->
+        <circle cx="100" cy="100" r="92" fill="#161616" stroke="#444" stroke-width="2" />
+        <circle cx="100" cy="100" r="70" fill="none" stroke="#2a2a2a" stroke-width="1" />
+        
+        <!-- Crosshairs -->
+        <line x1="100" y1="25" x2="100" y2="175" stroke="#2a2a2a" stroke-width="1" />
+        <line x1="25" y1="100" x2="175" y2="100" stroke="#2a2a2a" stroke-width="1" />
+
+        <!-- Cardinal Labels -->
+        <text x="100" y="22" fill="#ef4444" font-size="16" font-weight="bold" text-anchor="middle">N</text>
+        <text x="180" y="105" fill="#e5e5e5" font-size="14" font-weight="bold" text-anchor="middle">E</text>
+        <text x="100" y="188" fill="#e5e5e5" font-size="14" font-weight="bold" text-anchor="middle">S</text>
+        <text x="20" y="105" fill="#e5e5e5" font-size="14" font-weight="bold" text-anchor="middle">W</text>
+
+        <!-- Intercardinal Ticks -->
+        <line x1="158" y1="42" x2="151" y2="49" stroke="#666" stroke-width="2" />
+        <line x1="158" y1="158" x2="151" y2="151" stroke="#666" stroke-width="2" />
+        <line x1="42" y1="158" x2="49" y2="151" stroke="#666" stroke-width="2" />
+        <line x1="42" y1="42" x2="49" y2="49" stroke="#666" stroke-width="2" />
+
+        <!-- North Pointer Triangle -->
+        <polygon points="100,32 93,52 107,52" fill="#ef4444" />
+      </svg>
+    </div>
+    <div class="sub" id="compassSource">Compass: Waiting for start...</div>
+  </div>
+
+  <!-- UTM Coordinates Card -->
   <div class="card">
     <div class="label">UTM Zone</div>
     <div class="value" id="zone">--</div>
@@ -36,8 +83,94 @@
 
   <script>
     let watchId = null;
+    let compassActive = false;
+    let currentAzimuth = null;
+
     const btn = document.getElementById("toggleBtn");
     const statusEl = document.getElementById("status");
+    const compassDial = document.getElementById("compassDial");
+    const azimuthText = document.getElementById("azimuthText");
+    const compassSource = document.getElementById("compassSource");
+
+    function getCardinal(deg) {
+      const dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+      return dirs[Math.round(deg / 45) % 8];
+    }
+
+    function updateCompassUI(heading, sourceName) {
+      if (heading === null || isNaN(heading)) return;
+      heading = (heading + 360) % 360;
+
+      // Smooth angle interpolation across the 360 -> 0 boundary
+      if (currentAzimuth === null) {
+        currentAzimuth = heading;
+      } else {
+        let diff = heading - (currentAzimuth % 360);
+        if (diff > 180) diff -= 360;
+        if (diff < -180) diff += 360;
+        currentAzimuth += diff * 0.35; // Low-pass smoothing filter
+      }
+
+      const displayDeg = Math.round((currentAzimuth + 360) % 360);
+      azimuthText.textContent = `${String(displayDeg).padStart(3, "0")}° ${getCardinal(displayDeg)}`;
+      compassDial.style.transform = `rotate(${-currentAzimuth}deg)`;
+      compassSource.textContent = `Source: ${sourceName}`;
+    }
+
+    function handleOrientation(event) {
+      let heading = null;
+      let source = "Device Sensor";
+
+      if (typeof event.webkitCompassHeading === "number") {
+        // iOS Safari (True/Magnetic North)
+        heading = event.webkitCompassHeading;
+        source = "iOS Magnetometer";
+      } else if (event.absolute && event.alpha !== null) {
+        // Android Chrome absolute orientation
+        heading = 360 - event.alpha;
+        source = "Absolute Magnetometer";
+      } else if (event.alpha !== null) {
+        // Relative fallback
+        heading = 360 - event.alpha;
+        source = "Relative Orientation";
+      }
+
+      if (heading !== null) {
+        updateCompassUI(heading, source);
+      }
+    }
+
+    async function startCompass() {
+      if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
+        try {
+          const response = await DeviceOrientationEvent.requestPermission();
+          if (response === "granted") {
+            window.addEventListener("deviceorientation", handleOrientation, true);
+            compassActive = true;
+          } else {
+            compassSource.textContent = "Compass permission denied.";
+          }
+        } catch (err) {
+          compassSource.textContent = "Compass error: " + err.message;
+        }
+      } else if ("ondeviceorientationabsolute" in window) {
+        window.addEventListener("deviceorientationabsolute", handleOrientation, true);
+        compassActive = true;
+      } else if ("ondeviceorientation" in window) {
+        window.addEventListener("deviceorientation", handleOrientation, true);
+        compassActive = true;
+      } else {
+        compassSource.textContent = "No orientation sensor; using GPS movement heading.";
+      }
+    }
+
+    function stopCompass() {
+      window.removeEventListener("deviceorientation", handleOrientation, true);
+      window.removeEventListener("deviceorientationabsolute", handleOrientation, true);
+      compassActive = false;
+      currentAzimuth = null;
+      compassSource.textContent = "Compass paused.";
+    }
 
     function latLngToUTM(lat, lng) {
       if (lat < -80 || lat > 84) throw new Error("Out of UTM bounds (80°S to 84°N).");
@@ -94,43 +227,10 @@
     }
 
     function onSuccess(pos) {
-      const { latitude, longitude, accuracy } = pos.coords;
+      const { latitude, longitude, accuracy, heading } = pos.coords;
       const utm = latLngToUTM(latitude, longitude);
 
       document.getElementById("zone").textContent = utm.zone;
       document.getElementById("easting").textContent = `${utm.easting} m`;
       document.getElementById("northing").textContent = `${utm.northing} m`;
       document.getElementById("meta").textContent = 
-        `Accuracy: ±${Math.round(accuracy)}m | ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
-      statusEl.textContent = `Updated: ${new Date(pos.timestamp).toLocaleTimeString()}`;
-    }
-
-    function onError(err) {
-      statusEl.textContent = `GPS Error (${err.code}): ${err.message}`;
-    }
-
-    btn.addEventListener("click", () => {
-      if (watchId === null) {
-        if (!("geolocation" in navigator)) {
-          statusEl.textContent = "Geolocation not supported on this device.";
-          return;
-        }
-        statusEl.textContent = "Acquiring GPS satellites...";
-        watchId = navigator.geolocation.watchPosition(onSuccess, onError, {
-          enableHighAccuracy: true,
-          maximumAge: 0,
-          timeout: 15000
-        });
-        btn.textContent = "Stop Tracking";
-        btn.classList.add("stop");
-      } else {
-        navigator.geolocation.clearWatch(watchId);
-        watchId = null;
-        btn.textContent = "Start Tracking";
-        btn.classList.remove("stop");
-        statusEl.textContent = "Tracking paused.";
-      }
-    });
-  </script>
-</body>
-</html>
