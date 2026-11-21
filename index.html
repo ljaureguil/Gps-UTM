@@ -133,39 +133,4 @@
     });
   </script>
 </body>
-</html>statusEl.textContent = Updated: ${new Date(pos.timestamp).toLocaleTimeString()};
-// Fallback to GPS Course Over Ground if magnetometer hasn't fired yet
-if (currentAzimuth === null && typeof heading === "number" && !isNaN(heading)) {
-updateCompassUI(heading, "GPS Course Over Ground");
-}
-}
-function onError(err) {
-statusEl.textContent = GPS Error (${err.code}): ${err.message};
-}
-btn.addEventListener("click", async () => {
-if (watchId === null) {
-if (!("geolocation" in navigator)) {
-statusEl.textContent = "Geolocation not supported on this device.";
-return;
-}
-statusEl.textContent = "Acquiring GPS satellites & sensors...";
-// Request compass permission inside user click gesture (required for iOS)
-await startCompass();
-watchId = navigator.geolocation.watchPosition(onSuccess, onError, {
-enableHighAccuracy: true,
-maximumAge: 0,
-timeout: 15000
-});
-btn.textContent = "Stop Tracking";
-btn.classList.add("stop");
-} else {
-navigator.geolocation.clearWatch(watchId);
-watchId = null;
-stopCompass();
-btn.textContent = "Start Tracking";
-btn.classList.remove("stop");
-statusEl.textContent = "Tracking paused.";
-}
-});
-
-    <script>
+</html>
