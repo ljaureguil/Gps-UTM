@@ -61,15 +61,25 @@
     /* Controls */
     .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
     button {
-      padding: 12px; font-size: 0.92rem; font-weight: 600; border: none;
+      padding: 13px; font-size: 0.95rem; font-weight: 600; border: none;
       border-radius: 8px; cursor: pointer; color: #fff; background: #2563eb;
       touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
     }
     button:disabled { opacity: 0.4; cursor: not-allowed; }
     button.stop { background: #dc2626; }
     button.secondary { background: #334155; }
     button.export { background: #059669; }
-    #status { margin-top: 8px; font-size: 0.85rem; color: #fbbf24; min-height: 1.4em; word-break: break-word; }
+    #status {
+      margin-top: 10px;
+      padding: 8px 10px;
+      border-radius: 6px;
+      background: #1e293b;
+      font-size: 0.85rem;
+      color: #fbbf24;
+      min-height: 2.2em;
+      word-break: break-word;
+    }
   </style>
 </head>
 <body>
@@ -84,7 +94,7 @@
     <button type="button" id="resetBtn" class="secondary">Clear & Reset</button>
     <button type="button" id="exportBtn" class="export" disabled>Download CSV</button>
   </div>
-  <div id="status">Tap Start to enable GPS and Compass.</div>
+  <div id="status">Ready. Tap "Start Tracking" to begin.</div>
 
   <div class="grid">
     <!-- Live UTM -->
@@ -131,7 +141,7 @@
     let currentFix = null;
     let originUTM = null;
     let currentAzimuth = null;
-    let trackPoints = []; // Array of { x, y, easting, northing, lat, lng, time }
+    let trackPoints = [];
 
     const toggleBtn = document.getElementById("toggleBtn");
     const resetBtn = document.getElementById("resetBtn");
@@ -141,19 +151,21 @@
     const canvas = document.getElementById("trackCanvas");
     const ctx = canvas.getContext("2d");
 
+    // Global error catcher so mobile errors show on screen instead of failing silently
+    window.onerror = function (msg, url, line) {
+      statusEl.textContent = `JS Error (line ${line}): ${msg}`;
+    };
+
     if (!window.isSecureContext) {
-      statusEl.textContent = "Warning: GPS & Compass require HTTPS (or localhost).";
+      statusEl.textContent = "Blocked: Page must be opened via HTTPS (not HTTP or local file://).";
     }
 
     // 1. LocalStorage Persistence
     function saveTrackToStorage() {
       try {
-        const payload = { originUTM, trackPoints };
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ originUTM, trackPoints }));
         updateBadge();
-      } catch (e) {
-        console.warn("Storage full or unavailable:", e);
-      }
+      } catch (e) {}
     }
 
     function loadTrackFromStorage() {
@@ -167,14 +179,11 @@
           updateBadge();
           if (trackPoints.length > 0) {
             const last = trackPoints[trackPoints.length - 1];
-            const dist = Math.hypot(last.x, last.y);
-            document.getElementById("distStart").textContent = `${dist.toFixed(1)} m`;
-            statusEl.textContent = `Restored ${trackPoints.length} saved points from device.`;
+            document.getElementById("distStart").textContent = `${Math.hypot(last.x, last.y).toFixed(1)} m`;
+            statusEl.textContent = `Restored ${trackPoints.length} saved points.`;
           }
         }
-      } catch (e) {
-        console.warn("Failed to parse saved track:", e);
-      }
+      } catch (e) {}
     }
 
     function updateBadge() {
@@ -259,3 +268,68 @@
     }
 
     function initCompass() {
+// 6. Controls
+toggleBtn.addEventListener("click", () => {
+if (watchId === null) {
+if (!("geolocation" in navigator)) {
+statusEl.textContent = "Geolocation not supported in this browser.";
+return;
+}
+statusEl.textContent = "Button tapped — requesting GPS lock...";
+initCompass();
+// Grab an immediate quick fix first so UI updates right away
+navigator.geolocation.getCurrentPosition(handlePosition, () => {}, {
+enableHighAccuracy: false,
+maximumAge: 10000,
+timeout: 5000
+});
+// Start continuous high-accuracy tracking
+watchId = navigator.geolocation.watchPosition(
+handlePosition,
+handleGPSError,
+{ enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 }
+);
+toggleBtn.textContent = "Stop Tracking";
+toggleBtn.classList.add("stop");
+} else {
+navigator.geolocation.clearWatch(watchId);
+watchId = null;
+toggleBtn.textContent = "Start Tracking";
+toggleBtn.classList.remove("stop");
+statusEl.textContent = "Tracking paused. Path saved locally.";
+}
+});
+resetBtn.addEventListener("click", () => {
+localStorage.removeItem(STORAGE_KEY);
+trackPoints = [];
+originUTM = currentFix
+? { zone: currentFix.utm.zone, easting: currentFix.utm.easting, northing: currentFix.utm.northing }
+: null;
+updateBadge();
+document.getElementById("distStart").textContent = "0.0 m";
+document.getElementById("bearingStart").textContent = "Return: --°";
+statusEl.textContent = "Saved path cleared.";
+if (currentFix) handlePosition({ coords: { latitude: currentFix.lat, longitude: currentFix.lng, accuracy: currentFix.accuracy }, timestamp: Date.now() });
+else drawTrackGraph();
+});
+exportBtn.addEventListener("click", () => {
+if (trackPoints.length === 0) return;
+const headers = ["index", "time", "zone", "easting_m", "northing_m", "local_x_m", "local_y_m", "accuracy_m", "lat", "lng"];
+const rows = trackPoints.map((pt, i) => [
+i + 1, pt.time, pt.zone, pt.easting, pt.northing, pt.x, pt.y, pt.accuracy, pt.lat, pt.lng
+].join(","));
+const csv = [headers.join(","), ...rows].join("\n");
+const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+const url = URL.createObjectURL(blob);
+const a = document.createElement("a");
+a.href = url;
+a.download = utm_path_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.csv;
+a.click();
+URL.revokeObjectURL(url);
+});
+loadTrackFromStorage();
+drawTrackGraph();
+
+      </script>
+</body>
+</html>
