@@ -151,9 +151,8 @@
     const canvas = document.getElementById("trackCanvas");
     const ctx = canvas.getContext("2d");
 
-    // Global error catcher so mobile errors show on screen instead of failing silently
     window.onerror = function (msg, url, line) {
-      statusEl.textContent = `JS Error (line ${line}): ${msg}`;
+      statusEl.textContent = "JS Error (line " + line + "): " + msg;
     };
 
     if (!window.isSecureContext) {
@@ -163,7 +162,7 @@
     // 1. LocalStorage Persistence
     function saveTrackToStorage() {
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ originUTM, trackPoints }));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ originUTM: originUTM, trackPoints: trackPoints }));
         updateBadge();
       } catch (e) {}
     }
@@ -179,8 +178,8 @@
           updateBadge();
           if (trackPoints.length > 0) {
             const last = trackPoints[trackPoints.length - 1];
-            document.getElementById("distStart").textContent = `${Math.hypot(last.x, last.y).toFixed(1)} m`;
-            statusEl.textContent = `Restored ${trackPoints.length} saved points.`;
+            document.getElementById("distStart").textContent = Math.hypot(last.x, last.y).toFixed(1) + " m";
+            statusEl.textContent = "Restored " + trackPoints.length + " saved points.";
           }
         }
       } catch (e) {}
@@ -188,7 +187,7 @@
 
     function updateBadge() {
       const count = trackPoints.length;
-      ptBadge.textContent = `${count} pt${count === 1 ? "" : "s"} saved`;
+      ptBadge.textContent = count + (count === 1 ? " pt saved" : " pts saved");
       ptBadge.classList.toggle("saved", count > 0);
       exportBtn.disabled = count === 0;
     }
@@ -196,8 +195,11 @@
     // 2. WGS84 Lat/Lng to UTM
     function latLngToUTM(lat, lng) {
       if (lat < -80 || lat > 84) throw new Error("Out of UTM bounds");
-      const a = 6378137.0, f = 1 / 298.257223563, k0 = 0.9996;
-      const e2 = 2 * f - f * f, ep2 = e2 / (1 - e2);
+      const a = 6378137.0;
+      const f = 1 / 298.257223563;
+      const k0 = 0.9996;
+      const e2 = 2 * f - f * f;
+      const ep2 = e2 / (1 - e2);
 
       let zone = Math.floor((lng + 180) / 6) + 1;
       if (lat >= 56.0 && lat < 64.0 && lng >= 3.0 && lng < 12.0) zone = 32;
@@ -214,32 +216,32 @@
       const bands = "CDEFGHJKLMNPQRSTUVWXX";
       const band = bands[Math.floor((lat + 80) / 8)];
 
-      const N = a / Math.sqrt(1 - e2 * Math.sin(latRad) ** 2);
-      const T = Math.tan(latRad) ** 2;
-      const C = ep2 * Math.cos(latRad) ** 2;
+      const N = a / Math.sqrt(1 - e2 * Math.pow(Math.sin(latRad), 2));
+      const T = Math.pow(Math.tan(latRad), 2);
+      const C = ep2 * Math.pow(Math.cos(latRad), 2);
       const A = Math.cos(latRad) * (lonRad - lonOriginRad);
 
       const M = a * (
-        (1 - e2 / 4 - (3 * e2 ** 2) / 64 - (5 * e2 ** 3) / 256) * latRad -
-        ((3 * e2) / 8 + (3 * e2 ** 2) / 32 + (45 * e2 ** 3) / 1024) * Math.sin(2 * latRad) +
-        ((15 * e2 ** 2) / 256 + (45 * e2 ** 3) / 1024) * Math.sin(4 * latRad) -
-        ((35 * e2 ** 3) / 3072) * Math.sin(6 * latRad)
+        (1 - e2 / 4 - (3 * Math.pow(e2, 2)) / 64 - (5 * Math.pow(e2, 3)) / 256) * latRad -
+        ((3 * e2) / 8 + (3 * Math.pow(e2, 2)) / 32 + (45 * Math.pow(e2, 3)) / 1024) * Math.sin(2 * latRad) +
+        ((15 * Math.pow(e2, 2)) / 256 + (45 * Math.pow(e2, 3)) / 1024) * Math.sin(4 * latRad) -
+        ((35 * Math.pow(e2, 3)) / 3072) * Math.sin(6 * latRad)
       );
 
       const easting = k0 * N * (
-        A + ((1 - T + C) * A ** 3) / 6 +
-        ((5 - 18 * T + T ** 2 + 72 * C - 58 * ep2) * A ** 5) / 120
+        A + ((1 - T + C) * Math.pow(A, 3)) / 6 +
+        ((5 - 18 * T + T * T + 72 * C - 58 * ep2) * Math.pow(A, 5)) / 120
       ) + 500000.0;
 
       let northing = k0 * (
         M + N * Math.tan(latRad) * (
-          A ** 2 / 2 + ((5 - T + 9 * C + 4 * C ** 2) * A ** 4) / 24 +
-          ((61 - 58 * T + T ** 2 + 600 * C - 330 * ep2) * A ** 6) / 720
+          Math.pow(A, 2) / 2 + ((5 - T + 9 * C + 4 * C * C) * Math.pow(A, 4)) / 24 +
+          ((61 - 58 * T + T * T + 600 * C - 330 * ep2) * Math.pow(A, 6)) / 720
         )
       );
       if (lat < 0) northing += 10000000.0;
 
-      return { zone: `${zone}${band}`, easting, northing };
+      return { zone: zone + band, easting: easting, northing: northing };
     }
 
     // 3. Azimuth Compass
@@ -260,16 +262,24 @@
 
       if (heading !== null && !isNaN(heading)) {
         currentAzimuth = Math.round(heading);
-        document.getElementById("azimuthVal").textContent = `${currentAzimuth}°`;
+        document.getElementById("azimuthVal").textContent = currentAzimuth + "°";
         document.getElementById("cardinalDir").textContent = degToCardinal(currentAzimuth);
-        document.getElementById("needle").style.transform = `rotate(${-currentAzimuth}deg)`;
-        drawTrackGraph();
-      }
-    }
 
-    function initCompass() {
-// 6. Controls
-toggleBtn.addEventListener("click", () => {
+
+const csv = [headers.join(",")].concat(rows).join("\n");
+const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+const url = URL.createObjectURL(blob);
+const a = document.createElement("a");
+a.href = url;
+a.download = "utm_path_" + new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-") + ".csv";
+a.click();
+URL.revokeObjectURL(url);
+});
+loadTrackFromStorage();
+drawTrackGraph();
+
+
+Listener("click", () => {
 if (watchId === null) {
 if (!("geolocation" in navigator)) {
 statusEl.textContent = "Geolocation not supported in this browser.";
