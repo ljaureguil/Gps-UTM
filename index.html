@@ -1,11 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>UTM Tracker & Saved Path</title>
   <style>
-    * { box-sizing: border-box; }
+    * {
+      box-sizing: border-box;
+    }
+
     body {
       font-family: system-ui, -apple-system, sans-serif;
       padding: 16px;
@@ -14,37 +18,120 @@
       background: #0f172a;
       color: #f8fafc;
     }
-    h2 { margin: 0 0 12px; font-size: 1.25rem; display: flex; justify-content: space-between; align-items: center; }
-    .badge { font-size: 0.75rem; padding: 3px 8px; border-radius: 99px; background: #1e293b; color: #94a3b8; }
-    .badge.saved { background: #065f46; color: #6ee7b7; }
-    
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
-    .card { background: #1e293b; padding: 14px; border-radius: 10px; border: 1px solid #334155; }
-    .card.full { grid-column: span 2; }
-    
-    .label { font-size: 0.72rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
-    .val { font-size: 1.35rem; font-weight: 700; font-family: ui-monospace, monospace; margin-top: 4px; color: #38bdf8; }
-    .val.green { color: #4ade80; }
-    .val.amber { color: #fbbf24; }
-    .sub { font-size: 0.8rem; color: #cbd5e1; font-family: ui-monospace, monospace; margin-top: 6px; }
+
+    h2 {
+      margin: 0 0 12px;
+      font-size: 1.25rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .badge {
+      font-size: 0.75rem;
+      padding: 3px 8px;
+      border-radius: 99px;
+      background: #1e293b;
+      color: #94a3b8;
+    }
+
+    .badge.saved {
+      background: #065f46;
+      color: #6ee7b7;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .card {
+      background: #1e293b;
+      padding: 14px;
+      border-radius: 10px;
+      border: 1px solid #334155;
+    }
+
+    .card.full {
+      grid-column: span 2;
+    }
+
+    .label {
+      font-size: 0.72rem;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .val {
+      font-size: 1.35rem;
+      font-weight: 700;
+      font-family: ui-monospace, monospace;
+      margin-top: 4px;
+      color: #38bdf8;
+    }
+
+    .val.green {
+      color: #4ade80;
+    }
+
+    .val.amber {
+      color: #fbbf24;
+    }
+
+    .sub {
+      font-size: 0.8rem;
+      color: #cbd5e1;
+      font-family: ui-monospace, monospace;
+      margin-top: 6px;
+    }
 
     /* Compass UI */
-    .compass-wrap { display: flex; align-items: center; justify-content: space-between; }
+    .compass-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
     .dial {
-      width: 74px; height: 74px; border-radius: 50%; border: 2px solid #475569;
-      position: relative; display: flex; align-items: center; justify-content: center;
+      width: 74px;
+      height: 74px;
+      border-radius: 50%;
+      border: 2px solid #475569;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       background: #0f172a;
     }
+
     .needle {
-      width: 4px; height: 58px; position: relative; transition: transform 0.1s ease-out;
+      width: 4px;
+      height: 58px;
+      position: relative;
+      transition: transform 0.1s ease-out;
     }
+
     .needle::before {
-      content: ""; position: absolute; top: 0; left: -3px;
-      border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 29px solid #ef4444;
+      content: "";
+      position: absolute;
+      top: 0;
+      left: -3px;
+      border-left: 5px solid transparent;
+      border-right: 5px solid transparent;
+      border-bottom: 29px solid #ef4444;
     }
+
     .needle::after {
-      content: ""; position: absolute; bottom: 0; left: -3px;
-      border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 29px solid #94a3b8;
+      content: "";
+      position: absolute;
+      bottom: 0;
+      left: -3px;
+      border-left: 5px solid transparent;
+      border-right: 5px solid transparent;
+      border-top: 29px solid #94a3b8;
     }
 
     /* Track Path Canvas */
@@ -59,17 +146,42 @@
     }
 
     /* Controls */
-    .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .btn-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
     button {
-      padding: 13px; font-size: 0.95rem; font-weight: 600; border: none;
-      border-radius: 8px; cursor: pointer; color: #fff; background: #2563eb;
+      padding: 13px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      color: #fff;
+      background: #2563eb;
       touch-action: manipulation;
       -webkit-tap-highlight-color: transparent;
     }
-    button:disabled { opacity: 0.4; cursor: not-allowed; }
-    button.stop { background: #dc2626; }
-    button.secondary { background: #334155; }
-    button.export { background: #059669; }
+
+    button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    button.stop {
+      background: #dc2626;
+    }
+
+    button.secondary {
+      background: #334155;
+    }
+
+    button.export {
+      background: #059669;
+    }
+
     #status {
       margin-top: 10px;
       padding: 8px 10px;
@@ -82,6 +194,7 @@
     }
   </style>
 </head>
+
 <body>
 
   <h2>
@@ -94,6 +207,7 @@
     <button type="button" id="resetBtn" class="secondary">Clear & Reset</button>
     <button type="button" id="exportBtn" class="export" disabled>Download CSV</button>
   </div>
+
   <div id="status">Ready. Tap "Start Tracking" to begin.</div>
 
   <div class="grid">
@@ -136,7 +250,6 @@
 
   <script>
     const STORAGE_KEY = "utm_saved_track_v1";
-
     let watchId = null;
     let currentFix = null;
     let originUTM = null;
@@ -162,9 +275,12 @@
     // 1. LocalStorage Persistence
     function saveTrackToStorage() {
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ originUTM: originUTM, trackPoints: trackPoints }));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          originUTM: originUTM,
+          trackPoints: trackPoints
+        }));
         updateBadge();
-      } catch (e) {}
+      } catch (e) { }
     }
 
     function loadTrackFromStorage() {
@@ -182,7 +298,7 @@
             statusEl.textContent = "Restored " + trackPoints.length + " saved points.";
           }
         }
-      } catch (e) {}
+      } catch (e) { }
     }
 
     function updateBadge() {
@@ -239,6 +355,7 @@
           ((61 - 58 * T + T * T + 600 * C - 330 * ep2) * Math.pow(A, 6)) / 720
         )
       );
+
       if (lat < 0) northing += 10000000.0;
 
       return { zone: zone + band, easting: easting, northing: northing };
@@ -264,82 +381,181 @@
         currentAzimuth = Math.round(heading);
         document.getElementById("azimuthVal").textContent = currentAzimuth + "°";
         document.getElementById("cardinalDir").textContent = degToCardinal(currentAzimuth);
+        document.getElementById("needle").style.transform = "rotate(" + currentAzimuth + "deg)";
+      }
+    }
 
+    function initCompass() {
 
-const csv = [headers.join(",")].concat(rows).join("\n");
-const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-const url = URL.createObjectURL(blob);
-const a = document.createElement("a");
-a.href = url;
-a.download = "utm_path_" + new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-") + ".csv";
-a.click();
-URL.revokeObjectURL(url);
-});
-loadTrackFromStorage();
-drawTrackGraph();
+      if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
+        DeviceOrientationEvent.requestPermission().then(function (state) {
+          if (state === "granted") {
+            window.addEventListener("deviceorientation", handleOrientation, true);
+          }
+        }).catch(function () { });
+      } else {
+        window.addEventListener("deviceorientationabsolute", handleOrientation, true);
+        window.addEventListener("deviceorientation", handleOrientation, true);
+      }
+    }
+    // 4. GPS Position & Track Recording
+    function handlePosition(pos) {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      const accuracy = pos.coords.accuracy;
+      const utm = latLngToUTM(lat, lng);
+      currentFix = { lat: lat, lng: lng, accuracy: accuracy, utm: utm };
+      document.getElementById("zone").textContent = utm.zone;
+      document.getElementById("utmE").textContent = "E: " + utm.easting.toFixed(2) + " m";
+      document.getElementById("utmN").textContent = "N: " + utm.northing.toFixed(2) + " m";
+      document.getElementById("meta").textContent =
+        "Accuracy: ±" + Math.round(accuracy) + "m | " + lat.toFixed(5) + ", " + lng.toFixed(5);
+      if (!originUTM) {
+        originUTM = { zone: utm.zone, easting: utm.easting, northing: utm.northing };
+      }
+      const dx = utm.easting - originUTM.easting;
+      const dy = utm.northing - originUTM.northing;
+      const dist = Math.hypot(dx, dy);
+      const returnDeg = (Math.round((Math.atan2(-dx, -dy) * 180) / Math.PI) + 360) % 360;
+      document.getElementById("distStart").textContent = dist.toFixed(1) + " m";
+      document.getElementById("bearingStart").textContent = "Return: " + returnDeg + "°";
+      const last = trackPoints[trackPoints.length - 1];
+      if (!last || Math.hypot(dx - last.x, dy - last.y) >= 1.0) {
+        trackPoints.push({
+          time: new Date(pos.timestamp).toISOString(),
+          zone: utm.zone,
+          easting: Number(utm.easting.toFixed(3)),
+          northing: Number(utm.northing.toFixed(3)),
+          x: Number(dx.toFixed(3)),
+          y: Number(dy.toFixed(3)),
+          accuracy: Math.round(accuracy),
+          lat: Number(lat.toFixed(6)),
+          lng: Number(lng.toFixed(6))
+        });
+        saveTrackToStorage();
+      }
+      statusEl.textContent = "Tracking active (" + new Date(pos.timestamp).toLocaleTimeString() + ")";
+      drawTrackGraph();
+    }
+    function handleGPSError(err) {
+      statusEl.textContent = "GPS Error (" + err.code + "): " + err.message;
+    }
+    // 5. Track Path Canvas Graph
+    function drawTrackGraph() {
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+      let maxExtent = 5;
+      for (let i = 0; i < trackPoints.length; i++) {
+        maxExtent = Math.max(maxExtent, Math.abs(trackPoints[i].x), Math.abs(trackPoints[i].y));
+      }
+      const viewRadius = maxExtent * 1.25;
+      const scale = Math.min(w, h) / (2 * viewRadius);
+      document.getElementById("scaleLabel").textContent = "View: ~" + Math.round(viewRadius * 2) + "m";
+      const cx = w / 2;
+      const cy = h / 2;
+      // Crosshair axes
+      ctx.strokeStyle = "#1e293b";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(cx, 0); ctx.lineTo(cx, h);
+      ctx.moveTo(0, cy); ctx.lineTo(w, cy);
+      ctx.stroke();
+      // Origin marker
+      ctx.fillStyle = "#fbbf24";
+      ctx.beginPath();
+      ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+      ctx.fill();
+      if (trackPoints.length === 0) return;
+      // Path line
+      ctx.strokeStyle = "#38bdf8";
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      for (let i = 0; i < trackPoints.length; i++) {
+        const px = cx + trackPoints[i].x * scale;
+        const py = cy - trackPoints[i].y * scale;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+      // Current position dot
+      const last = trackPoints[trackPoints.length - 1];
+      ctx.fillStyle = "#4ade80";
+      ctx.beginPath();
+      ctx.arc(cx + last.x * scale, cy - last.y * scale, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // 6. Controls
+    toggleBtn.addEventListener("click", function () {
+      if (watchId === null) {
+        if (!("geolocation" in navigator)) {
+          statusEl.textContent = "Geolocation not supported in this browser.";
+          return;
+        }
+        statusEl.textContent = "Button tapped — requesting GPS lock...";
+        initCompass();
+        navigator.geolocation.getCurrentPosition(handlePosition, function () { }, {
+          enableHighAccuracy: false,
+          maximumAge: 10000,
+          timeout: 5000
+        });
+        watchId = navigator.geolocation.watchPosition(
+          handlePosition,
+          handleGPSError,
+          { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 }
+        );
+        toggleBtn.textContent = "Stop Tracking";
+        toggleBtn.classList.add("stop");
+      } else {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+        toggleBtn.textContent = "Start Tracking";
+        toggleBtn.classList.remove("stop");
+        statusEl.textContent = "Tracking paused. Path saved locally.";
+      }
+    });
+    resetBtn.addEventListener("click", function () {
+      localStorage.removeItem(STORAGE_KEY);
+      trackPoints = [];
+      originUTM = currentFix
+        ? { zone: currentFix.utm.zone, easting: currentFix.utm.easting, northing: currentFix.utm.northing }
+        : null;
+      updateBadge();
+      document.getElementById("distStart").textContent = "0.0 m";
+      document.getElementById("bearingStart").textContent = "Return: --°";
+      statusEl.textContent = "Saved path cleared.";
+      if (currentFix) {
+        handlePosition({
+          coords: { latitude: currentFix.lat, longitude: currentFix.lng, accuracy: currentFix.accuracy },
+          timestamp: Date.now()
+        });
+      } else {
+        drawTrackGraph();
+      }
+    });
+    exportBtn.addEventListener("click", function () {
+      if (trackPoints.length === 0) return;
+      const headers = ["index", "time", "zone", "easting_m", "northing_m", "local_x_m", "local_y_m", "accuracy_m", "lat", "lng"];
+      const rows = trackPoints.map(function (pt, i) {
+        return [
+          i + 1, pt.time, pt.zone, pt.easting, pt.northing,
+          pt.x, pt.y, pt.accuracy, pt.lat, pt.lng
+        ].join(",");
+      });
+      const csv = [headers.join(","), ...rows].join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `utm_path_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.csv`;
+      a.click();
 
+      URL.revokeObjectURL(url);
+    });
+    loadTrackFromStorage();
+    drawTrackGraph();
 
-Listener("click", () => {
-if (watchId === null) {
-if (!("geolocation" in navigator)) {
-statusEl.textContent = "Geolocation not supported in this browser.";
-return;
-}
-statusEl.textContent = "Button tapped — requesting GPS lock...";
-initCompass();
-// Grab an immediate quick fix first so UI updates right away
-navigator.geolocation.getCurrentPosition(handlePosition, () => {}, {
-enableHighAccuracy: false,
-maximumAge: 10000,
-timeout: 5000
-});
-// Start continuous high-accuracy tracking
-watchId = navigator.geolocation.watchPosition(
-handlePosition,
-handleGPSError,
-{ enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 }
-);
-toggleBtn.textContent = "Stop Tracking";
-toggleBtn.classList.add("stop");
-} else {
-navigator.geolocation.clearWatch(watchId);
-watchId = null;
-toggleBtn.textContent = "Start Tracking";
-toggleBtn.classList.remove("stop");
-statusEl.textContent = "Tracking paused. Path saved locally.";
-}
-});
-resetBtn.addEventListener("click", () => {
-localStorage.removeItem(STORAGE_KEY);
-trackPoints = [];
-originUTM = currentFix
-? { zone: currentFix.utm.zone, easting: currentFix.utm.easting, northing: currentFix.utm.northing }
-: null;
-updateBadge();
-document.getElementById("distStart").textContent = "0.0 m";
-document.getElementById("bearingStart").textContent = "Return: --°";
-statusEl.textContent = "Saved path cleared.";
-if (currentFix) handlePosition({ coords: { latitude: currentFix.lat, longitude: currentFix.lng, accuracy: currentFix.accuracy }, timestamp: Date.now() });
-else drawTrackGraph();
-});
-exportBtn.addEventListener("click", () => {
-if (trackPoints.length === 0) return;
-const headers = ["index", "time", "zone", "easting_m", "northing_m", "local_x_m", "local_y_m", "accuracy_m", "lat", "lng"];
-const rows = trackPoints.map((pt, i) => [
-i + 1, pt.time, pt.zone, pt.easting, pt.northing, pt.x, pt.y, pt.accuracy, pt.lat, pt.lng
-].join(","));
-const csv = [headers.join(","), ...rows].join("\n");
-const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-const url = URL.createObjectURL(blob);
-const a = document.createElement("a");
-a.href = url;
-a.download = utm_path_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.csv;
-a.click();
-URL.revokeObjectURL(url);
-});
-loadTrackFromStorage();
-drawTrackGraph();
-
-      </script>
+  </script>
 </body>
+
 </html>
