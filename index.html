@@ -249,6 +249,7 @@
   </div>
 
   <script>
+    navigator.wakeLock?.request('screen').catch(() => {});
     const STORAGE_KEY = "utm_saved_track_v1";
     let watchId = null;
     let currentFix = null;
