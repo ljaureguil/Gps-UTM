@@ -249,7 +249,7 @@
   </div>
 
   <script>
-    navigator.wakeLock?.request('screen').catch(() => {});
+    navigator.wakeLock?.request('screen').catch(() => { });
     const STORAGE_KEY = "utm_saved_track_v1";
     let watchId = null;
     let currentFix = null;
@@ -379,13 +379,20 @@
       }
 
       if (heading !== null && !isNaN(heading)) {
-        currentAzimuth = Math.round(heading);
+        var headang = degToDMS(heading)
+        currentAzimuth = headag;// heading.toFixed(2);//Math.round(heading);
         document.getElementById("azimuthVal").textContent = currentAzimuth + "°";
         document.getElementById("cardinalDir").textContent = degToCardinal(currentAzimuth);
         document.getElementById("needle").style.transform = "rotate(" + currentAzimuth + "deg)";
       }
     }
-
+    function degToDMS(deg) {
+      const totalSeconds = Math.round(((deg % 360) + 360) % 360 * 3600);
+      const d = Math.floor(totalSeconds / 3600) % 360;
+      const m = Math.floor((totalSeconds % 3600) / 60);
+      const s = totalSeconds % 60;
+      return `${d}° ${String(m).padStart(2, "0")}' ${String(s).padStart(2, "0")}"`;
+    }
     function initCompass() {
 
       if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
