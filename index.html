@@ -380,7 +380,7 @@
 
       if (heading !== null && !isNaN(heading)) {
         var headang = degToDMS(heading)
-        currentAzimuth = headag;// heading.toFixed(2);//Math.round(heading);
+        currentAzimuth = headang;// heading.toFixed(2);//Math.round(heading);
         document.getElementById("azimuthVal").textContent = currentAzimuth + "°";
         document.getElementById("cardinalDir").textContent = degToCardinal(currentAzimuth);
         document.getElementById("needle").style.transform = "rotate(" + currentAzimuth + "deg)";
